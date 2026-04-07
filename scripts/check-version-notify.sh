@@ -19,8 +19,8 @@ if [ -z "$CURRENT_VERSION" ]; then
   exit 1
 fi
 
-# 2. 同步本地 repo（用于读取 changelog）
-git fetch origin 2>/dev/null || true
+# 2. 同步上游主库（用于读取最新 changelog）
+git fetch upstream main 2>/dev/null || git fetch origin 2>/dev/null || true
 
 # 3. 读取上次已通知的版本
 LAST_VERSION=""
@@ -29,7 +29,7 @@ if [ -f "$STATE_FILE" ]; then
 fi
 
 # 4. 最新提交信息
-LATEST_COMMIT=$(git log --oneline -1 origin/main 2>/dev/null || git log --oneline -1)
+LATEST_COMMIT=$(git log --oneline -1 upstream/main 2>/dev/null || git log --oneline -1 origin/main 2>/dev/null || git log --oneline -1)
 
 TODAY=$(TZ='Asia/Shanghai' date +%Y-%m-%d)
 
@@ -39,8 +39,14 @@ format_changelog() {
   local version="$1"
   # 提取该版本的 changelog 块
   local raw
-  raw=$(awk "/^## ${version}/{found=1; next} found && /^## /{exit} found{print}" \
-    "$REPO_DIR/CHANGELOG.md" | head -80)
+  # 优先从上游读取，回退到本地文件
+  raw=$(git show upstream/main:CHANGELOG.md 2>/dev/null \
+    | awk "/^## ${version}/{found=1; next} found && /^## /{exit} found{print}" \
+    | head -80)
+  if [ -z "$raw" ]; then
+    raw=$(awk "/^## ${version}/{found=1; next} found && /^## /{exit} found{print}" \
+      "$REPO_DIR/CHANGELOG.md" | head -80)
+  fi
 
   if [ -z "$raw" ]; then
     echo "（本地 changelog 暂未同步该版本，请访问 GitHub Releases 查看详情）"
