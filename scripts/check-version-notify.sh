@@ -65,7 +65,7 @@ ${SUMMARY}
 
 ---
 
-📌 [完整 changelog](https://docs.openclaw.ai/changelog)"
+📌 [完整 changelog](https://github.com/openclaw/openclaw/releases)"
 
   # 更新已通知版本记录
   echo "$CURRENT_VERSION" > "$STATE_FILE"
