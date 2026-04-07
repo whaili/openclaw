@@ -49,29 +49,37 @@ format_changelog() {
   fi
 
   if [ -z "$raw" ]; then
-    echo "（本地 changelog 暂未同步该版本，请访问 GitHub Releases 查看详情）"
+    echo "（changelog 暂未同步该版本，请访问 GitHub Releases 查看详情）"
     return
   fi
 
-  # 翻译章节标题，清理 PR 编号和 Thanks，截断过长条目
-  echo "$raw" | awk '
-    /^### Breaking/   { print "### ⚠️ 重要变更"; next }
-    /^### Changes/    { print "### ✨ 新功能";   next }
-    /^### Fixes/      { print "### 🐛 问题修复"; next }
-    /^###/            { print; next }
-    /^- / {
-      # 去掉末尾 PR 编号 "(#12345)" 和 "Thanks @xxx"
-      line = $0
-      gsub(/ \(#[0-9]+\)/, "", line)
-      gsub(/ Thanks @[^ .]+\.?/, "", line)
-      gsub(/\. $/, ".", line)
-      # 截断超长行（保留前 120 字符）
-      if (length(line) > 120) line = substr(line, 1, 120) "…"
-      print line
-      next
-    }
-    /^$/ { print; next }
-  ' | head -40
+  # 用 Claude 生成中文摘要，--output-format json 隔离 hook 输出，只取 result 字段
+  local summary
+  summary=$(echo "$raw" | claude --print --output-format json \
+    "以下是 OpenClaw ${version} 的英文 changelog，请整理成简洁的中文摘要。
+要求：
+- 分「### ⚠️ 重要变更」「### ✨ 新功能」「### 🐛 问题修复」三个标题，没有的可省略
+- 每条用「- 」列表，保留 Telegram/Matrix/Feishu 等专有名词
+- 总字数 400 字以内，只输出摘要内容" 2>/dev/null \
+    | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if not line: continue
+    try:
+        d = json.loads(line)
+        if d.get('type') == 'result':
+            print(d.get('result', ''))
+            break
+    except:
+        pass
+")
+
+  if [ -z "$summary" ]; then
+    echo "（摘要生成失败，请访问 GitHub Releases 查看详情）"
+  else
+    echo "$summary"
+  fi
 }
 
 # 5. 判断是否有新版本
